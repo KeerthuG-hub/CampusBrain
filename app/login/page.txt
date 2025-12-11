@@ -1,0 +1,326 @@
+'use client'
+import React, { useState } from 'react'
+import { Mail, Lock, User, AlertCircle, CheckCircle, Loader2, BookOpen } from 'lucide-react'
+
+export default function AuthPage() {
+  const [mode, setMode] = useState('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [emailValidation, setEmailValidation] = useState<{ isValid: boolean; role: string | null } | null>(null)
+
+  // Email validation function
+  const handleEmailValidation = async () => {
+    if (!email) return
+    
+    setLoading(true)
+    setError('')
+    
+    try {
+      const response = await fetch('/api/auth/validate-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      
+      const result = await response.json()
+      
+      if (!result.isValid) {
+        setError(result.error || 'Invalid email')
+        setEmailValidation(null)
+      } else {
+        setEmailValidation({ isValid: result.isValid, role: result.role })
+        setError('')
+      }
+    } catch (err) {
+      setError('Failed to validate email')
+      setEmailValidation(null)
+    }
+    
+    setLoading(false)
+  }
+
+  // Handle Login
+  const handleLogin = async () => {
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase().trim(), password })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        setError(data.error || 'Login failed')
+        setLoading(false)
+        return
+      }
+      
+      // Redirect based on role
+      if (data.role === 'admin') {
+        window.location.href = '/admin/dashboard'
+      } else if (data.role === 'faculty') {
+        window.location.href = '/faculty/dashboard'
+      } else {
+        window.location.href = '/student/dashboard'
+      }
+    } catch (err) {
+      setError('Login failed. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  // Handle Signup
+  const handleSignup = async () => {
+    if (!emailValidation || !emailValidation.isValid) {
+      setError('Please validate your email first')
+      return
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+    
+    if (!fullName.trim()) {
+      setError('Please enter your full name')
+      return
+    }
+    
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: email.toLowerCase().trim(), 
+          password, 
+          fullName: fullName.trim() 
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        setError(data.error || 'Signup failed')
+        setLoading(false)
+        return
+      }
+      
+      setSuccess('Account created! Please check your email to verify your account.')
+      setEmail('')
+      setPassword('')
+      setFullName('')
+      setEmailValidation(null)
+      
+      // Switch to login after 3 seconds
+      setTimeout(() => {
+        setMode('login')
+        setSuccess('')
+      }, 3000)
+    } catch (err) {
+      setError('Signup failed. Please try again.')
+    }
+    
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl mb-4 shadow-lg">
+            <BookOpen className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Knowledge Hub</h1>
+          <p className="text-slate-600">Academic Resource Platform</p>
+        </div>
+
+        {/* Auth Card */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
+          {/* Mode Toggle */}
+          <div className="flex gap-2 mb-6 bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => { setMode('login'); setError(''); setSuccess(''); setEmailValidation(null) }}
+              className={`flex-1 py-2 rounded-md font-semibold transition-all ${
+                mode === 'login' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Login
+            </button>
+            <button
+              onClick={() => { setMode('signup'); setError(''); setSuccess(''); setEmailValidation(null) }}
+              className={`flex-1 py-2 rounded-md font-semibold transition-all ${
+                mode === 'signup' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <p className="text-sm text-green-700">{success}</p>
+            </div>
+          )}
+
+          {/* Login View */}
+          {mode === 'login' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+                <div className="relative">
+                  <Mail className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="your.email@university.edu"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+                <div className="relative">
+                  <Lock className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleLogin}
+                disabled={loading}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Logging in...
+                  </>
+                ) : (
+                  'Login'
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Signup View */}
+          {mode === 'signup' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
+                <div className="relative">
+                  <User className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="John Doe"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+                <div className="relative">
+                  <Mail className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setEmailValidation(null) }}
+                    onBlur={handleEmailValidation}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="your.email@university.edu"
+                  />
+                  {emailValidation?.isValid && (
+                    <CheckCircle className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-green-600" />
+                  )}
+                </div>
+                {emailValidation?.isValid && (
+                  <p className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle className="w-4 h-4" />
+                    Verified as {emailValidation.role}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+                <div className="relative">
+                  <Lock className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSignup()}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="••••••••"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Minimum 6 characters</p>
+              </div>
+
+              <button
+                onClick={handleSignup}
+                disabled={loading || !emailValidation?.isValid}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  'Create Account'
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-sm text-slate-600 mt-6">
+          {mode === 'login' 
+            ? 'Students use institutional emails. Faculty must be whitelisted.' 
+            : 'Already have an account? Switch to Login above.'}
+        </p>
+      </div>
+    </div>
+  )
+}

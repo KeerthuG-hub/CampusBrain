@@ -1,0 +1,465 @@
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { Search, Upload, Filter, BookOpen, FileText, Presentation, FileQuestion, ChevronRight, Calendar, Eye, Download, CheckCircle } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import ResourceCard from '@/components/ResourceCard'
+import ResourceUploadForm from '@/components/UploadForm'
+
+interface Resource {
+  id: string
+  title: string
+  description: string
+  file_url: string
+  resource_type: 'notes' | 'book' | 'ppt' | 'question_paper' | 'course_plan'
+  uploader_name: string
+  view_count: number
+  download_count: number
+  is_verified: boolean
+  created_at: string
+  tags: Array<{ name: string; type: string }>
+}
+
+interface Course {
+  code: string
+  name: string
+  semester_number: number
+  credits: number
+  description: string
+}
+
+const categoryConfig = {
+  course_plan: { icon: Calendar, color: 'bg-indigo-500', label: 'Course Plan' },
+  notes: { icon: FileText, color: 'bg-blue-500', label: 'Notes' },
+  ppt: { icon: Presentation, color: 'bg-purple-500', label: 'PPTs' },
+  book: { icon: BookOpen, color: 'bg-green-500', label: 'Books' },
+  question_paper: { icon: FileQuestion, color: 'bg-red-500', label: 'Question Papers' },
+}
+
+type CategoryKey = keyof typeof categoryConfig
+
+const semesterColors = [
+  'from-red-500 to-orange-500',
+  'from-orange-500 to-amber-500',
+  'from-amber-500 to-yellow-500',
+  'from-green-500 to-emerald-500',
+  'from-emerald-500 to-teal-500',
+  'from-cyan-500 to-blue-500',
+  'from-blue-500 to-indigo-500',
+  'from-indigo-500 to-purple-500',
+]
+
+export default function AcademicResourceHub() {
+  const supabase = createClient()
+  const session = true
+
+  const [view, setView] = useState<'home' | 'semester' | 'course' | 'category'>('home')
+  const [courses, setCourses] = useState<Course[]>([])
+  const [resources, setResources] = useState<Resource[]>([])
+  const [selectedSemester, setSelectedSemester] = useState<number | null>(null)
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<CategoryKey | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterType, setFilterType] = useState<'all' | 'verified'>('all')
+  const [showFilters, setShowFilters] = useState(false)
+  const [showUploadForm, setShowUploadForm] = useState(false)
+
+  // Fetch courses on mount
+  useEffect(() => {
+    const fetchCourses = async () => {
+      const { data, error } = await supabase.from('courses').select('*')
+      if (!error && data) setCourses(data)
+    }
+    fetchCourses()
+  }, [])
+
+  // Fetch resources when course or category changes
+  useEffect(() => {
+    if (!selectedCourse) return
+    const fetchResources = async () => {
+      // First, get tag IDs for the course code
+      const { data: tagData } = await supabase
+        .from('tags')
+        .select('id')
+        .eq('name', selectedCourse.code)
+        .eq('type', 'course')
+        .single()
+
+      if (!tagData) return
+
+      // Then get resources with those tags
+      const { data: resourceTagData } = await supabase
+        .from('resource_tags')
+        .select('resource_id')
+        .eq('tag_id', tagData.id)
+
+      if (!resourceTagData) return
+
+      const resourceIds = resourceTagData.map(rt => rt.resource_id)
+
+      let query = supabase
+        .from('resources')
+        .select(`
+          *,
+          profiles!resources_uploader_id_fkey(full_name)
+        `)
+        .in('id', resourceIds)
+
+      if (selectedCategory) query = query.eq('resource_type', selectedCategory)
+      if (filterType === 'verified') query = query.eq('is_verified', true)
+
+      const { data, error } = await query
+
+      if (!error && data) {
+        const formattedResources = data.map(r => ({
+          ...r,
+          uploader_name: r.profiles?.full_name || 'Unknown',
+          tags: [{ name: selectedCourse.code, type: 'course' }]
+        }))
+        setResources(formattedResources)
+      }
+    }
+    fetchResources()
+  }, [selectedCourse, selectedCategory, filterType])
+
+  const getCategoryCount = (type: string) => {
+    return resources.filter(r => r.resource_type === type).length
+  }
+
+  // 🔹 HOME VIEW
+  if (view === 'home') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 rounded-lg">
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Resource Hub</h1>
+                <p className="text-sm text-slate-500">Academic Resources & Materials</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {/* Bloom's Taxonomy Section */}
+          <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 mb-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">Understanding Bloom's Taxonomy</h2>
+            <div className="text-slate-600">
+              <p className="mb-4">
+                Our resource organization follows <strong>Bloom's Taxonomy</strong>, a hierarchical model of cognitive skills that helps structure learning from basic knowledge to advanced creation. Resources are categorized to support your learning journey at every level:
+              </p>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-semibold text-slate-900 mb-2">Lower Order Thinking Skills</h3>
+                  <ul className="space-y-2 text-sm">
+                    <li><strong>Remember:</strong> Course plans and syllabus help you recall facts and basic concepts</li>
+                    <li><strong>Understand:</strong> Notes and PPTs aid in explaining ideas and concepts</li>
+                    <li><strong>Apply:</strong> Question papers let you use information in new situations</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 mb-2">Higher Order Thinking Skills</h3>
+                  <ul className="space-y-2 text-sm">
+                    <li><strong>Analyze:</strong> Books help you draw connections and distinguish between components</li>
+                    <li><strong>Evaluate:</strong> Multiple resources support critical assessment of theories</li>
+                    <li><strong>Create:</strong> Combined materials enable you to produce original work</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Semester Selection */}
+          <h3 className="text-xl font-bold text-slate-900 mb-6">Browse by Semester</h3>
+          <div className="grid grid-cols-4 gap-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+              <button
+                key={sem}
+                onClick={() => {
+                  setSelectedSemester(sem)
+                  setView('semester')
+                }}
+                className={`bg-gradient-to-br ${semesterColors[sem - 1]} rounded-xl p-6 shadow-lg hover:shadow-xl transition-all group relative overflow-hidden`}
+              >
+                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+                <div className="relative z-10">
+                  <div className="text-3xl font-bold text-white mb-2">Semester {sem}</div>
+                  <div className="text-sm text-white/90">
+                    {courses.filter((c) => c.semester_number === sem).length} courses
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-white/80 mt-3 ml-auto group-hover:translate-x-1 transition-transform" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 🔹 SEMESTER VIEW
+  if (view === 'semester') {
+    const filtered = courses.filter((c) => c.semester_number === selectedSemester)
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => {
+                    setView('home')
+                    setSelectedSemester(null)
+                  }}
+                  className="text-slate-600 hover:text-slate-900 font-medium"
+                >
+                  ← Back
+                </button>
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900">Semester {selectedSemester}</h1>
+                  <p className="text-sm text-slate-500">{filtered.length} courses available</p>
+                </div>
+              </div>
+              {session && (
+                <button
+                  onClick={() => setShowUploadForm(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload Resource
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="grid grid-cols-2 gap-6">
+            {filtered.map((course) => (
+              <button
+                key={course.code}
+                onClick={() => {
+                  setSelectedCourse(course)
+                  setView('course')
+                }}
+                className="bg-white rounded-xl p-6 border-2 border-slate-200 hover:border-blue-500 hover:shadow-lg transition-all text-left group"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-gradient-to-br from-blue-600 to-indigo-600 px-3 py-1.5 rounded-lg">
+                      <span className="text-white font-bold text-sm">{course.code}</span>
+                    </div>
+                    <div className="bg-slate-100 px-2 py-1 rounded">
+                      <span className="text-slate-700 font-semibold text-xs">{course.credits} Credits</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                </div>
+                
+                <h3 className="text-lg font-bold text-slate-900 mb-3">{course.name}</h3>
+                
+                {course.description && (
+                  <p className="text-sm text-slate-600 mb-3 line-clamp-2">{course.description}</p>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {showUploadForm && (
+          <ResourceUploadForm onClose={() => setShowUploadForm(false)} />
+        )}
+      </div>
+    )
+  }
+
+  // 🔹 COURSE VIEW → CATEGORY VIEW
+  if (view === 'course' && selectedCourse) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => {
+                    setView('semester')
+                    setSelectedCourse(null)
+                  }}
+                  className="text-slate-600 hover:text-slate-900 font-medium"
+                >
+                  ← Back
+                </button>
+                <div className="flex-1">
+                  <h1 className="text-2xl font-bold text-slate-900">{selectedCourse.name}</h1>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-sm text-slate-500">{selectedCourse.code}</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-sm text-slate-500">{selectedCourse.credits} Credits</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-sm text-slate-500">Semester {selectedCourse.semester_number}</span>
+                  </div>
+                </div>
+              </div>
+              {session && (
+                <button
+                  onClick={() => setShowUploadForm(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload Resource
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <h3 className="text-xl font-bold text-slate-900 mb-6">Select Resource Category</h3>
+          <div className="grid grid-cols-5 gap-6">
+            {(Object.entries(categoryConfig) as [CategoryKey, typeof categoryConfig[CategoryKey]][]).map(([key, cfg]) => {
+              const Icon = cfg.icon
+              const count = getCategoryCount(key)
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setSelectedCategory(key)
+                    setView('category')
+                  }}
+                  className="bg-white rounded-xl p-6 border-2 border-slate-200 hover:border-blue-500 hover:shadow-lg transition-all group"
+                >
+                  <div className={`${cfg.color} w-16 h-16 rounded-2xl flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform shadow-lg`}>
+                    <Icon className="w-8 h-8 text-white" />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900 mb-2">{cfg.label}</h4>
+                  <div className="text-sm text-slate-500">{count} items</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {showUploadForm && (
+          <ResourceUploadForm onClose={() => setShowUploadForm(false)} />
+        )}
+      </div>
+    )
+  }
+
+  // 🔹 CATEGORY VIEW → Resource List
+  if (view === 'category' && selectedCategory && selectedCourse) {
+    const categoryInfo = categoryConfig[selectedCategory]
+    const CategoryIcon = categoryInfo.icon
+
+    const filteredResources = resources.filter(r => {
+      const matchesSearch = r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           r.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesType = filterType === 'all' || r.is_verified
+      return matchesSearch && matchesType
+    })
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => {
+                    setView('course')
+                    setSelectedCategory(null)
+                  }}
+                  className="text-slate-600 hover:text-slate-900 font-medium"
+                >
+                  ← Back
+                </button>
+                <div className={`${categoryInfo.color} p-2 rounded-lg shadow-md`}>
+                  <CategoryIcon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900">{categoryInfo.label}</h1>
+                  <p className="text-sm text-slate-500">{selectedCourse.code} • {selectedCourse.name}</p>
+                </div>
+              </div>
+              {session && (
+                <button
+                  onClick={() => setShowUploadForm(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Search and Filters */}
+        <div className="bg-white border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex gap-4">
+              <div className="flex-1 relative">
+                <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search resources..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+              </button>
+            </div>
+            {showFilters && (
+              <div className="mt-4 p-4 bg-slate-50 rounded-lg">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFilterType('all')}
+                    className={`px-3 py-1 rounded-lg text-sm ${filterType === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700'}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setFilterType('verified')}
+                    className={`px-3 py-1 rounded-lg text-sm ${filterType === 'verified' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700'}`}
+                  >
+                    Verified Only
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Resource Grid */}
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="mb-4">
+            <p className="text-sm text-slate-600">{filteredResources.length} resources found</p>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            {filteredResources.map((resource) => (
+              <ResourceCard key={resource.id} resource={resource} />
+            ))}
+          </div>
+        </div>
+
+        {showUploadForm && (
+          <ResourceUploadForm onClose={() => setShowUploadForm(false)} />
+        )}
+      </div>
+    )
+  }
+
+  return null
+}

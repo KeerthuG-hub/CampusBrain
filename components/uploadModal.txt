@@ -1,0 +1,123 @@
+// src/components/UploadModal.tsx
+import React, { useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import toast from 'react-hot-toast';
+import { v4 as uuidv4 } from 'uuid';
+import type { Role } from '@/lib/types';
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  userId: string | null;
+  userName?: string | null;
+  userRole?: Role | null;
+  courses: { id: string; code: string; name: string }[];
+  onUploaded?: () => void;
+};
+
+export default function UploadModal({ open, onClose, userId, userName, userRole, courses, onUploaded }: Props) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [resourceType, setResourceType] = useState<Resource['resource_type']>('notes');
+  const [courseCode, setCourseCode] = useState<string | undefined>(courses[0]?.code);
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  if (!open) return null;
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file || !userId) { toast.error('File & sign-in required'); return; }
+    setLoading(true);
+    try {
+      const bucket = import.meta.env.VITE_SUPABASE_BUCKET as string;
+      const ext = file.name.split('.').pop();
+      const path = `resources/${Date.now()}_${uuidv4()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from(bucket).upload(path, file);
+      if (upErr) throw upErr;
+
+      // Insert resource record with storage path (not public url)
+      const { data, error } = await supabase.from('resources').insert([{
+        title,
+        description,
+        file_url: path,            // store storage path
+        file_type: file.type,
+        resource_type: resourceType,
+        uploader_id: userId,
+        uploader_name: userName || null,
+        is_approved: userRole === 'faculty' || userRole === 'admin',
+        course_code: courseCode || null,
+        created_at: new Date().toISOString()
+      }]).select().single();
+
+      if (error) throw error;
+
+      // create storage_mappings
+      const slugBase = title.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+      const slug = `${slugBase}-${uuidv4().slice(0,6)}`;
+      await supabase.from('storage_mappings').insert([{
+        resource_id: data.id,
+        provider: 'supabase',
+        external_link: path,       
+        internal_slug: slug
+      }]);
+
+      toast.success(userRole === 'faculty' || userRole === 'admin' ? 'Uploaded & approved' : 'Uploaded — pending approval');
+      onUploaded?.();
+      onClose();
+    } catch (err:any) {
+      console.error(err);
+      toast.error(err.message || 'Upload failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <form onSubmit={handleUpload} className="w-full max-w-2xl bg-white rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-3">Upload Resource</h3>
+
+        <label className="block mb-2 text-sm">Title</label>
+        <input required value={title} onChange={e=>setTitle(e.target.value)} className="w-full border rounded px-3 py-2 mb-3" />
+
+        <label className="block mb-2 text-sm">Description</label>
+        <textarea value={description} onChange={e=>setDescription(e.target.value)} className="w-full border rounded px-3 py-2 mb-3" />
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block mb-1 text-sm">Category</label>
+            <select value={resourceType} onChange={e=>setResourceType(e.target.value as any)} className="w-full border rounded px-3 py-2">
+              <option value="course_plan">Course Plan</option>
+              <option value="notes">Notes</option>
+              <option value="ppt">PPT</option>
+              <option value="book">Book</option>
+              <option value="question_paper">Question Paper</option>
+              <option value="form">Form</option>
+              <option value="experience">Experience</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-1 text-sm">Course</label>
+            <select value={courseCode} onChange={e=>setCourseCode(e.target.value)} className="w-full border rounded px-3 py-2">
+              {courses.map(c => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="block mb-1 text-sm">File</label>
+          <input type="file" onChange={e=>setFile(e.target.files?.[0] ?? null)} />
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="px-4 py-2 border rounded">Cancel</button>
+          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded" disabled={loading}>
+            {loading ? 'Uploading...' : 'Upload'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
