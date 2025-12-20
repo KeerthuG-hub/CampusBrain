@@ -39,3 +39,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/Users/keerthanaganesh/Desktop/CampusBrainPrj/CampusBrain/CampusBrain/course-resources-platform/app/api/embeddings/generate/route.ts
