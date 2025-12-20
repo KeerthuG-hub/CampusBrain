@@ -807,7 +807,7 @@ export default function AcademicResourceHub() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
-  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+  const showNotification = (type: 'success' | 'error' | 'info' | 'confirm', message: string) => {
     const id = Math.random().toString(36).substr(2, 9)
     setNotifications(prev => [...prev, { id, type, message }])
     
