@@ -311,7 +311,11 @@ export default function CampusBrainDashboard() {
   };
 
   const handleDashboardClick = () => {
-    if (user.role === 'faculty' || user.role === 'admin' || user.role === 'placement_officer') {
+    if (
+      user?.role === 'faculty' ||
+      user?.role === 'admin' ||
+      user?.role === 'placement_officer'
+    ) {
       router.push('/faculty');
     } else {
       router.push('/student');
