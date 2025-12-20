@@ -2,10 +2,13 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
+// Type helper for Supabase client
+type SupabaseClientType = Awaited<ReturnType<typeof createServerClient>>;
+
 export async function GET(req: Request) {
   try {
-    // 1️⃣ Create Supabase client (sync)
-    const supabase = await createServerClient();
+    // 1️⃣ Await the server client
+    const supabase: SupabaseClientType = await createServerClient();
 
     // 2️⃣ Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
