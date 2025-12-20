@@ -51,6 +51,7 @@ export default function QuestionDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [userVotes, setUserVotes] = useState<{[key: string]: boolean}>({})
 
   // Calculate word count
@@ -90,7 +91,20 @@ export default function QuestionDetailPage() {
   const loadQuestionAndAnswers = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) setCurrentUserId(user.id)
+      if (user) {
+        setCurrentUserId(user.id)
+        
+        // Fetch user role
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        
+        if (profile) {
+          setCurrentUserRole(profile.role)
+        }
+      }
 
       const { data: questionData, error: questionError } = await supabase
         .from('questions')
@@ -230,7 +244,7 @@ export default function QuestionDetailPage() {
   }
 
   const handleMarkAsAccepted = async (answerId: string) => {
-    if (!question || question.user_id !== currentUserId) return
+    if (!question || (question.user_id !== currentUserId && currentUserRole !== 'Faculty')) return
 
     try {
       await supabase
@@ -485,7 +499,9 @@ export default function QuestionDetailPage() {
                       </button>
                     </div>
 
-                    {question.user_id === currentUserId && !answer.is_accepted && !question.is_resolved && (
+                    {(question.user_id === currentUserId || currentUserRole === 'Faculty') && 
+                     !answer.is_accepted && 
+                     !question.is_resolved && (
                       <button
                         onClick={() => handleMarkAsAccepted(answer.id)}
                         className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"

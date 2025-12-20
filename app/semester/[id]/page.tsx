@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+
+import { supabase } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { BookOpen, ArrowLeft, FileText } from 'lucide-react';
 import { Course } from '@/lib/types';
@@ -9,7 +10,6 @@ export default async function SemesterPage({
   params: { id: string } 
 }) {
   const semesterId = parseInt(params.id);
-  const supabase = createClient();
 
   // Fetch courses for this semester
   const { data: courses, error } = await supabase
@@ -23,7 +23,7 @@ export default async function SemesterPage({
   }
 
   // Group courses by category (HSC, PC, etc.)
-  const groupedCourses = courses?.reduce((acc, course) => {
+  const groupedCourses = courses?.reduce((acc: { [x: string]: any[]; }, course: { description: string; }) => {
     const category = course.description || 'Other';
     if (!acc[category]) {
       acc[category] = [];
@@ -70,7 +70,7 @@ export default async function SemesterPage({
           </div>
         ) : (
           <div className="space-y-8">
-            {Object.entries(groupedCourses || {}).map(([category, coursesInCategory]) => (
+            {(Object.entries(groupedCourses || {}) as [string, Course[]][]).map(([category, coursesInCategory]) => (
               <div key={category}>
                 <h2 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
                   <div className="w-1 h-6 bg-blue-500 rounded" />

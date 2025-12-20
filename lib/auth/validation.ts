@@ -1,11 +1,10 @@
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client';
 
 export async function validateEmail(email: string): Promise<{
   isValid: boolean
   role: 'student' | 'faculty' | null
   error?: string
 }> {
-  const supabase = createClient()
   const lowerEmail = email.toLowerCase().trim()
   
   // Step 1: Check faculty whitelist first
