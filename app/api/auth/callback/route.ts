@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase/server'
 
 interface ValidationResult {
   isValid: boolean
-  role: 'student' | 'faculty' | 'admin' | null
+  role: 'student' | 'faculty' | 'admin' | 'placement_officer' | null
   error?: string
 }
 
@@ -64,7 +64,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=no_code`)
   }
 
-  // ✅ FIX: await once
   const supabase = await createServerClient()
 
   try {
@@ -137,8 +136,8 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      // New user needs to complete profile
-      return NextResponse.redirect(`${origin}/setup-profile`)
+      // ✅ FIXED: New user needs to complete profile - redirect to /setup
+      return NextResponse.redirect(`${origin}/setup`)
     }
 
     // Update role if it changed
@@ -149,18 +148,67 @@ export async function GET(request: NextRequest) {
         .eq('id', session.user.id)
     }
 
-    // Check if profile is complete
-    const isProfileComplete =
-      profile.full_name &&
-      (validation.role === 'faculty' ||
-        (profile.department && profile.batch_year))
+    // ✅ FIXED: Check if profile is complete with proper validation
+    const hasBasicInfo = !!profile.full_name && !!profile.department
+    
+    // For students, also check batch_year
+    const isStudentComplete = profile.role === 'student' 
+      ? hasBasicInfo && !!profile.batch_year
+      : true
+    
+    // For faculty, also check interests (we'll do this below)
+    const isFacultyComplete = profile.role === 'faculty' 
+      ? hasBasicInfo
+      : true
 
-    if (!isProfileComplete) {
-      return NextResponse.redirect(`${origin}/setup-profile`)
+    // Check interests for all users
+    const { count: interestsCount } = await supabase
+      .from('user_interests')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', session.user.id)
+
+    const hasInterests = (interestsCount || 0) > 0
+
+    // For faculty, also check courses or SIGs
+    let hasFacultyData = true
+    if (profile.role === 'faculty') {
+      const { count: coursesCount } = await supabase
+        .from('faculty_courses')
+        .select('*', { count: 'exact', head: true })
+        .eq('faculty_id', session.user.id)
+
+      const { count: sigsCount } = await supabase
+        .from('faculty_sigs')
+        .select('*', { count: 'exact', head: true })
+        .eq('faculty_id', session.user.id)
+
+      hasFacultyData = (coursesCount || 0) > 0 || (sigsCount || 0) > 0
     }
 
-    // All good - redirect to dashboard
-    return NextResponse.redirect(`${origin}/dashboard`)
+    // Determine if setup is complete
+    const isProfileComplete = 
+      hasBasicInfo && 
+      isStudentComplete && 
+      isFacultyComplete && 
+      hasInterests &&
+      (profile.role !== 'faculty' || hasFacultyData)
+
+    if (!isProfileComplete) {
+      // ✅ FIXED: Redirect to /setup (not /setup-profile)
+      return NextResponse.redirect(`${origin}/setup`)
+    }
+
+    // ✅ FIXED: Role-based redirects instead of generic /dashboard
+    if (profile.role === 'admin') {
+      return NextResponse.redirect(`${origin}/`)
+    } else if (profile.role === 'placement_officer') {
+      return NextResponse.redirect(`${origin}/faculty`)
+    } else if (profile.role === 'faculty') {
+      return NextResponse.redirect(`${origin}/faculty`)
+    } else {
+      // Student
+      return NextResponse.redirect(`${origin}/student`)
+    }
   } catch (error) {
     console.error('Auth callback error:', error)
     return NextResponse.redirect(`${origin}/login?error=unexpected_error`)
