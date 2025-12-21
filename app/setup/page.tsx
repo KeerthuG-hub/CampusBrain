@@ -151,15 +151,15 @@ export default function SetupPage() {
       }
      
       console.log('[SETUP] ✅ Session found!')
-      console.log('[SETUP] User ID:', session.user.id)
-      console.log('[SETUP] Email:', session.user.email)
+      console.log('[SETUP] User ID:', session!.user.id)
+      console.log('[SETUP] Email:', session!.user.email)
      
       // STEP 2: Load profile data
       console.log('[SETUP] Loading profile...')
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', session.user.id)
+        .eq('id', session!.user.id)
         .single()
        
       if (profileError) {
@@ -214,7 +214,7 @@ export default function SetupPage() {
           tag_id,
           tags!inner(id, name)
         `)
-        .eq('user_id', session.user.id)
+        .eq('user_id', session!.user.id)
 
 
       let userInterestNames: string[] = []
@@ -268,7 +268,7 @@ export default function SetupPage() {
         const { data: facultyCoursesData } = await supabase
           .from('faculty_courses')
           .select('course_id, academic_year, is_current, teaching_role')
-          .eq('faculty_id', session.user.id)
+          .eq('faculty_id', session!.user.id)
           .order('academic_year', { ascending: false })
        
         existingCourses = (facultyCoursesData || []).map(fc => ({
@@ -284,7 +284,7 @@ export default function SetupPage() {
         const { data: facultySigsData } = await supabase
           .from('faculty_sigs')
           .select('sig_id, role')
-          .eq('faculty_id', session.user.id)
+          .eq('faculty_id', session!.user.id)
        
         existingSigs = (facultySigsData || []).map(fs => ({
           id: fs.sig_id,
