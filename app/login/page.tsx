@@ -281,10 +281,13 @@ export default function EnhancedLogin() {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       const domain = email.split('@')[1]
-      const redirectUrl = process.env.GOOGLE_REDIRECT_URI
-      
-      sessionStorage.setItem('login_email', email.toLowerCase().trim())
-      sessionStorage.setItem('validation_result', JSON.stringify(validationResult))
+const redirectUrl = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI || 
+                    (typeof window !== 'undefined' 
+                      ? `${window.location.origin}/auth/callback`
+                      : 'http://localhost:3000/auth/callback')
+
+sessionStorage.setItem('login_email', email.toLowerCase().trim())
+sessionStorage.setItem('validation_result', JSON.stringify(validationResult))
 
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
