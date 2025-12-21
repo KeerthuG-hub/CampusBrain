@@ -281,7 +281,7 @@ export default function EnhancedLogin() {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       const domain = email.split('@')[1]
-      const redirectUrl = `${window.location.origin}/auth/callback`
+      const redirectUrl = process.env.GOOGLE_REDIRECT_URI
       
       sessionStorage.setItem('login_email', email.toLowerCase().trim())
       sessionStorage.setItem('validation_result', JSON.stringify(validationResult))
