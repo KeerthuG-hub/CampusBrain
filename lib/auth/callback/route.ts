@@ -49,7 +49,8 @@ async function validateUserEmail(
   return {
     isValid: false,
     role: null,
-    error: 'Access denied. Please use your institutional email address or contact your administrator.'
+    error:
+      'Access denied. Please use your institutional email address or contact your administrator.'
   }
 }
 
@@ -63,12 +64,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=no_code`)
   }
 
-  const supabase = createServerClient()
+  // ✅ FIX: await once
+  const supabase = await createServerClient()
 
   try {
     // Exchange code for session
-    const { data: { session }, error: sessionError } = 
-      await supabase.auth.exchangeCodeForSession(code)
+    const {
+      data: { session },
+      error: sessionError
+    } = await supabase.auth.exchangeCodeForSession(code)
 
     if (sessionError || !session) {
       console.error('Session error:', sessionError)
@@ -90,7 +94,9 @@ export async function GET(request: NextRequest) {
     if (!validation.isValid) {
       await supabase.auth.signOut()
       return NextResponse.redirect(
-        `${origin}/login?error=${encodeURIComponent(validation.error || 'unauthorized')}`
+        `${origin}/login?error=${encodeURIComponent(
+          validation.error || 'unauthorized'
+        )}`
       )
     }
 
@@ -113,23 +119,29 @@ export async function GET(request: NextRequest) {
           id: session.user.id,
           email: userEmail,
           role: validation.role,
-          full_name: session.user.user_metadata?.full_name || 
-                     session.user.user_metadata?.name || null,
-          avatar_url: session.user.user_metadata?.avatar_url || 
-                      session.user.user_metadata?.picture || null
+          full_name:
+            session.user.user_metadata?.full_name ||
+            session.user.user_metadata?.name ||
+            null,
+          avatar_url:
+            session.user.user_metadata?.avatar_url ||
+            session.user.user_metadata?.picture ||
+            null
         })
 
       if (insertError) {
         console.error('Profile creation error:', insertError)
         await supabase.auth.signOut()
-        return NextResponse.redirect(`${origin}/login?error=profile_creation_failed`)
+        return NextResponse.redirect(
+          `${origin}/login?error=profile_creation_failed`
+        )
       }
 
       // New user needs to complete profile
       return NextResponse.redirect(`${origin}/setup-profile`)
     }
 
-    // Update role if it changed (e.g., student became faculty)
+    // Update role if it changed
     if (profile.role !== validation.role) {
       await supabase
         .from('profiles')
@@ -138,9 +150,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if profile is complete
-    const isProfileComplete = 
-      profile.full_name && 
-      (validation.role === 'faculty' || (profile.department && profile.batch_year))
+    const isProfileComplete =
+      profile.full_name &&
+      (validation.role === 'faculty' ||
+        (profile.department && profile.batch_year))
 
     if (!isProfileComplete) {
       return NextResponse.redirect(`${origin}/setup-profile`)
@@ -148,7 +161,6 @@ export async function GET(request: NextRequest) {
 
     // All good - redirect to dashboard
     return NextResponse.redirect(`${origin}/dashboard`)
-
   } catch (error) {
     console.error('Auth callback error:', error)
     return NextResponse.redirect(`${origin}/login?error=unexpected_error`)
