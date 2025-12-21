@@ -1,9 +1,8 @@
 
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client';
 import { validateEmail } from './validation'
 
 export async function signupUser(email: string, password: string, fullName: string) {
-  const supabase = createClient()
   
   // Step 1: Validate email and get role
   const validation = await validateEmail(email)
