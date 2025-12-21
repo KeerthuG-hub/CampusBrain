@@ -8,7 +8,7 @@ import { Readable } from 'stream'
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  'http://localhost:3000'
+  process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI
 )
 
 oauth2Client.setCredentials({
@@ -106,7 +106,7 @@ async function findExistingFolder(
 
     const exact = data.files.find(f => f.name?.trim().toUpperCase() === folderName.trim().toUpperCase())
 
-    if (exact) {
+    if (exact && exact.id) {
       console.log(`✅ Found folder: ${exact.name} (${exact.id})`)
       return exact.id
     }
