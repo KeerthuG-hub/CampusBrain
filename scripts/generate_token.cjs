@@ -4,7 +4,7 @@ const readline = require('readline');
 const oauth2Client = new google.auth.OAuth2(
   '559237546949-rm0mf51u5gmv8mlu9mh42e1m40i5tr63.apps.googleusercontent.com',
   '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',
-  'http://localhost:3000/oauth2callback'  // MUST MATCH your Google Console redirect
+  process.env.GOOGLE_REDIRECT_URI // MUST MATCH your Google Console redirect
 );
 
 const authUrl = oauth2Client.generateAuthUrl({
